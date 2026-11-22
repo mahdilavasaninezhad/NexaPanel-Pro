@@ -1,0 +1,63 @@
+import { useI18n } from '../i18n/useI18n';
+import { Download, Edit3, Eye, Plus, Search, SlidersHorizontal, Users } from 'lucide-react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Avatar, Button, Drawer, EmptyState, IconButton, Modal, PageHeading, Pagination, StatusPill, useDelayedSearch } from '../components/UI';
+import { plans } from '../data/demo';
+import { customerRevenue, downloadCsv } from '../lib/utils';
+import { useWorkspace } from '../store/WorkspaceContext';
+import { useAppActions } from '../app/App';
+import type { Channel, Customer, CustomerInput, CustomerStatus, PlanId } from '../types';
+
+const blank: CustomerInput = { name: '', email: '', company: '', plan: 'growth', status: 'Trial', channel: 'Organic', country: '' };
+const statuses: CustomerStatus[] = ['Active', 'Trial', 'Inactive'];
+const channels: Channel[] = ['Organic', 'Direct', 'Referral', 'Social'];
+
+function CustomerDialog({ open, customer, onClose }: { open: boolean; customer: Customer | null; onClose: () => void }) {
+  const { t } = useI18n();
+  const { data, addCustomer, updateCustomer } = useWorkspace();
+  const { toast } = useAppActions();
+  const [form, setForm] = useState<CustomerInput>(blank);
+  const [error, setError] = useState('');
+  useEffect(() => { if (open) { setForm(customer ? { name: customer.name, email: customer.email, company: customer.company, plan: customer.plan, status: customer.status, channel: customer.channel, country: customer.country } : blank); setError(''); } }, [open, customer]);
+  function save(event: FormEvent) {
+    event.preventDefault();
+    const input = { ...form, name: form.name.trim(), company: form.company.trim(), email: form.email.trim().toLowerCase(), country: form.country.trim() };
+    if (!input.name || !input.company || !input.country || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email)) { setError(t('Please enter a valid name, company, country, and email address.')); return; }
+    if (data.customers.some(item => item.email.toLowerCase() === input.email && item.id !== customer?.id)) { setError(t('A customer with this email already exists.')); return; }
+    if (customer) { updateCustomer({ ...customer, ...input }); toast(t('Customer profile updated')); } else { addCustomer(input); toast(t('Customer added to workspace')); }
+    onClose();
+  }
+  return <Modal open={open} onClose={onClose} title={customer ? 'Edit customer' : 'Add new customer'} description={t("Customer records are stored in this browser only.")} wide><form onSubmit={save}><div className="form-grid"><label className="field"><span>{t("Full name *")}</span><input autoFocus required value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} placeholder={t("e.g. Jamie Parker")} /></label><label className="field"><span>{t("Work email *")}</span><input type="email" required value={form.email} onChange={event => setForm({ ...form, email: event.target.value })} placeholder={t("jamie@example.com")} /></label><label className="field"><span>{t("Company *")}</span><input required value={form.company} onChange={event => setForm({ ...form, company: event.target.value })} placeholder={t("e.g. Studio North")} /></label><label className="field"><span>{t("Country *")}</span><input required value={form.country} onChange={event => setForm({ ...form, country: event.target.value })} placeholder={t("e.g. Canada")} /></label><label className="field"><span>{t("Subscription plan")}</span><select value={form.plan} onChange={event => setForm({ ...form, plan: event.target.value as PlanId })}>{plans.map(plan => <option key={plan.id} value={plan.id}>{t(plan.name)}</option>)}</select></label><label className="field"><span>{t("Account status")}</span><select value={form.status} onChange={event => setForm({ ...form, status: event.target.value as CustomerStatus })}>{statuses.map(status => <option key={status} value={status}>{t(status)}</option>)}</select></label><label className="field field-span"><span>{t("Acquisition source")}</span><select value={form.channel} onChange={event => setForm({ ...form, channel: event.target.value as Channel })}>{channels.map(channel => <option key={channel} value={channel}>{t(channel)}</option>)}</select></label></div>{error && <p className="form-error" role="alert">{error}</p>}<div className="modal-actions"><Button type="button" onClick={onClose}>{t("Cancel")}</Button><Button type="submit" variant="primary">{customer ? 'Save changes' : 'Create customer'}</Button></div></form></Modal>;
+}
+
+export function CustomersPage() {
+  const { t, currency, date, planName, number } = useI18n();
+  const { data } = useWorkspace();
+  const { toast } = useAppActions();
+  const params = new URLSearchParams(window.location.hash.split('?')[1] ?? '');
+  const initialPlan = params.get('plan');
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('all');
+  const [plan, setPlan] = useState<string>(initialPlan && plans.some(item => item.id === initialPlan) ? initialPlan : 'all');
+  const [sort, setSort] = useState('newest');
+  const [page, setPage] = useState(1);
+  const [dialog, setDialog] = useState(false);
+  const [editing, setEditing] = useState<Customer | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const delayedSearch = useDelayedSearch(search);
+  const perPage = data.preferences.compact ? 12 : 8;
+  const enriched = useMemo(() => data.customers.map(customer => ({ ...customer, revenue: customerRevenue(customer, data.transactions) })), [data.customers, data.transactions]);
+  const filtered = useMemo(() => enriched.filter(customer => {
+    const matchSearch = `${customer.name} ${customer.company} ${customer.email} ${customer.country}`.toLowerCase().includes(delayedSearch.trim().toLowerCase());
+    return matchSearch && (status === 'all' || customer.status === status) && (plan === 'all' || customer.plan === plan);
+  }).sort((a, b) => sort === 'spent' ? b.revenue - a.revenue : sort === 'name' ? a.name.localeCompare(b.name) : b.joinedAt.localeCompare(a.joinedAt)), [enriched, delayedSearch, status, plan, sort]);
+  useEffect(() => setPage(1), [delayedSearch, status, plan, sort, perPage]);
+  const pages = Math.max(1, Math.ceil(filtered.length / perPage));
+  const currentPage = Math.min(page, pages);
+  const rows = filtered.slice((currentPage - 1) * perPage, currentPage * perPage);
+  const selected = data.customers.find(item => item.id === selectedId) ?? null;
+  const selectedTransactions = selected ? data.transactions.filter(item => item.customerId === selected.id).sort((a, b) => b.issuedAt.localeCompare(a.issuedAt)) : [];
+  const openEdit = (customer: Customer) => { setSelectedId(null); setEditing(customer); setDialog(true); };
+  const exportCsv = () => { downloadCsv('nexapanel-customers.csv', [['ID', 'Name', 'Company', 'Email', 'Plan', 'Status', 'Country', 'Source', 'Total paid USD', 'Joined'], ...filtered.map(item => [item.id, item.name, item.company, item.email, planName(item.plan), item.status, item.country, item.channel, item.revenue, item.joinedAt])]); toast(`${number(filtered.length)} ${t('Customer records exported')}`); };
+  return <><PageHeading eyebrow={t("MANAGEMENT / CUSTOMERS")} title={t("Customers")} description={t("Manage contacts, subscription plans, and account status.")} action={<><Button icon={<Download size={16} />} onClick={exportCsv}>{t("Export CSV")}</Button><Button variant="primary" icon={<Plus size={17} />} onClick={() => { setEditing(null); setDialog(true); }}>{t("Add customer")}</Button></>} /><div className="summary-strip"><div><span className="summary-icon tone-purple"><Users size={19} /></span><div><strong>{number(data.customers.length)}</strong><small>{t("Total customers")}</small></div></div><div><span className="summary-icon tone-mint"><span className="summary-symbol">✓</span></span><div><strong>{number(data.customers.filter(item => item.status === 'Active').length)}</strong><small>{t("Active accounts")}</small></div></div><div><span className="summary-icon tone-orange"><span className="summary-symbol">◷</span></span><div><strong>{number(data.customers.filter(item => item.status === 'Trial').length)}</strong><small>{t("Trial accounts")}</small></div></div></div><section className="surface-panel listing-panel"><div className="listing-header"><div><h2>{t("Customer directory ")}<span className="count-badge">{number(filtered.length)}</span></h2><p>{t("Search and manage your sample workspace records.")}</p></div><span className="filter-tag"><SlidersHorizontal size={15} /> {t("Filters")}</span></div><div className="filters-row"><label className="search-input"><Search size={17} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder={t("Search name, company, email...")} aria-label={t("Search customers")} /></label><select aria-label={t("Filter by status")} value={status} onChange={event => setStatus(event.target.value)}><option value="all">{t("All statuses")}</option>{statuses.map(item => <option key={item} value={item}>{item}</option>)}</select><select aria-label={t("Filter by plan")} value={plan} onChange={event => setPlan(event.target.value)}><option value="all">{t("All plans")}</option>{plans.map(item => <option key={item.id} value={item.id}>{t(item.name)}</option>)}</select><select aria-label={t("Sort customers")} value={sort} onChange={event => setSort(event.target.value)}><option value="newest">{t("Newest first")}</option><option value="spent">{t("Highest revenue")}</option><option value="name">{t("Name A–Z")}</option></select></div>{rows.length === 0 ? <EmptyState title={t("No customers found")} description={t("Adjust the filters or create a new customer.")} action={<Button onClick={() => { setSearch(''); setStatus('all'); setPlan('all'); }}>{t("Clear filters")}</Button>} /> : <div className="table-overflow"><table className={`data-table large-table ${data.preferences.compact ? 'compact-table' : ''}`}><thead><tr><th>{t("Customer")}</th><th>{t("Plan")}</th><th>{t("Country")}</th><th>{t("Total revenue")}</th><th>{t("Joined")}</th><th>{t("Status")}</th><th className="align-right">{t("Actions")}</th></tr></thead><tbody>{rows.map(item => <tr key={item.id}><td><div className="person-cell"><Avatar name={item.name} /><div><strong>{item.name}</strong><small>{item.company} · {item.email}</small></div></div></td><td><span className={`plan-chip plan-${item.plan}`}>{planName(item.plan)}</span></td><td>{t(item.country)}</td><td className="cell-primary">{currency(item.revenue)}</td><td>{date(item.joinedAt)}</td><td><StatusPill status={item.status} /></td><td><div className="row-actions"><IconButton label={`${t('View customer')} ${item.name}`} onClick={() => setSelectedId(item.id)}><Eye size={17} /></IconButton><IconButton label={`${t('Edit')} ${item.name}`} onClick={() => openEdit(item)}><Edit3 size={16} /></IconButton></div></td></tr>)}</tbody></table></div>}<Pagination page={currentPage} total={filtered.length} perPage={perPage} onChange={setPage} /></section><CustomerDialog open={dialog} customer={editing} onClose={() => setDialog(false)} /><Drawer open={!!selected} onClose={() => setSelectedId(null)} title={t("Customer details")} description={t("Profile and transaction overview")}>{selected && <><div className="drawer-profile"><Avatar name={selected.name} size="large" /><h3>{selected.name}</h3><p>{selected.company}</p><StatusPill status={selected.status} /></div><div className="detail-list"><div><span>{t("Email address")}</span><strong>{selected.email}</strong></div><div><span>{t("Country")}</span><strong>{t(selected.country)}</strong></div><div><span>{t("Plan")}</span><strong>{planName(selected.plan)}</strong></div><div><span>{t("Acquired via")}</span><strong>{t(selected.channel)}</strong></div><div><span>{t("Customer since")}</span><strong>{date(selected.joinedAt)}</strong></div><div><span>{t("Lifetime paid revenue")}</span><strong>{currency(customerRevenue(selected, data.transactions))}</strong></div></div><div className="drawer-section-title"><strong>{t("Recent transactions")}</strong><span>{number(selectedTransactions.length)} {t('total')}</span></div>{selectedTransactions.length === 0 ? <p className="muted">{t("No transactions yet.")}</p> : selectedTransactions.slice(0, 7).map(item => <div className="drawer-line" key={item.id}><div><strong>{item.id}</strong><small>{date(item.issuedAt)}</small></div><div><strong>{currency(item.amount)}</strong><StatusPill status={item.status} /></div></div>)}<div className="drawer-bottom"><Button variant="primary" onClick={() => openEdit(selected)} icon={<Edit3 size={16} />}>{t("Edit customer")}</Button></div></>}</Drawer></>;
+}

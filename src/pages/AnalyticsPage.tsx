@@ -1,0 +1,32 @@
+import { useI18n } from '../i18n/useI18n';
+import { Activity, CircleDollarSign, CreditCard, Download, TrendingUp } from 'lucide-react';
+import { useMemo } from 'react';
+import { DonutChart, OrdersChart, RevenueChart } from '../components/Charts';
+import { Avatar, Button, MetricCard, PageHeading, PeriodSelect, SectionHeading } from '../components/UI';
+import { customerRevenue, downloadCsv, getMonthlyRevenue, getPeriodTransactions, percentChange } from '../lib/utils';
+import { useWorkspace } from '../store/WorkspaceContext';
+import { useAppActions } from '../app/App';
+
+export function AnalyticsPage() {
+  const { t, currency, number, shortCurrency, monthLabel } = useI18n();
+  const { data, updatePreferences } = useWorkspace();
+  const { toast } = useAppActions();
+  const period = data.preferences.period;
+  const current = useMemo(() => getPeriodTransactions(data.transactions, period), [data.transactions, period]);
+  const previous = useMemo(() => getPeriodTransactions(data.transactions, period, period), [data.transactions, period]);
+  const chart = useMemo(() => getMonthlyRevenue(data.transactions, period).map(item => ({ ...item, label: monthLabel(item.key) })), [data.transactions, period, monthLabel]);
+  const paid = current.filter(item => item.status === 'Paid');
+  const revenue = paid.reduce((sum, item) => sum + item.amount, 0);
+  const previousRevenue = previous.filter(item => item.status === 'Paid').reduce((sum, item) => sum + item.amount, 0);
+  const average = paid.length ? revenue / paid.length : 0;
+  const totalPaid = current.length ? (paid.length / current.length) * 100 : 0;
+  const statuses = ['Paid', 'Pending', 'Refunded', 'Failed'].map((name, i) => ({ name: t(name), value: current.filter(item => item.status === name).length, color: ['#6c69ec', '#f3b657', '#f185a8', '#c7cbd6'][i] }));
+  const channels = ['Organic', 'Direct', 'Referral', 'Social'].map((name, i) => ({ name: t(name), value: paid.filter(item => data.customers.find(customer => customer.id === item.customerId)?.channel === name).reduce((sum, item) => sum + item.amount, 0), color: ['#7668ed', '#46b8ad', '#ffb568', '#f18cad'][i] }));
+  const topCustomers = data.customers.map(customer => ({ customer, value: customerRevenue(customer, current) })).sort((a, b) => b.value - a.value).slice(0, 5);
+  const largest = Math.max(1, ...topCustomers.map(item => item.value));
+  const exportReport = () => {
+    downloadCsv('nexapanel-monthly-analytics.csv', [['Month', 'Revenue USD', 'Transactions', 'Refunded USD'], ...chart.map(item => [item.key, item.revenue, item.orders, item.refunded])]);
+    toast(t('Monthly analytics report exported'));
+  };
+  return <><PageHeading eyebrow={t("WORKSPACE / ANALYTICS")} title={t("Analytics & insights")} description={t("Explore your sample transaction data and see how your business is performing.")} action={<Button icon={<Download size={16} />} onClick={exportReport}>{t("Export report")}</Button>} /><div className="analytics-filter"><div><strong>{t("Performance report")}</strong><span>{t("Values are derived from sample transactions")}</span></div><PeriodSelect value={period} onChange={value => updatePreferences({ period: value })} /></div><div className="stats-grid stats-three"><MetricCard title={t("Gross paid revenue")} value={currency(revenue)} change={percentChange(revenue, previousRevenue)} sub="vs previous period" icon={<CircleDollarSign size={21} />} /><MetricCard title={t("Transaction volume")} value={number(current.length)} change={percentChange(current.length, previous.length)} sub="all statuses" icon={<CreditCard size={21} />} tone="blue" /><MetricCard title={t("Payment success rate")} value={`${totalPaid.toFixed(1)}%`} sub="paid / all transactions" icon={<Activity size={21} />} tone="mint" /><MetricCard title={t("Average paid invoice")} value={currency(average)} sub="paid transactions" icon={<TrendingUp size={21} />} tone="orange" /></div><section className="surface-panel full-chart-panel"><SectionHeading title={t("Revenue performance")} description={`${t('Monthly paid revenue across the last')} ${number(period)} ${t('months')}`} /><div className="revenue-header"><strong>{currency(revenue)}</strong><span>{t("USD · Sample revenue")}</span></div><RevenueChart data={chart} detailed /></section><div className="insight-grid"><section className="surface-panel"><SectionHeading title={t("Transaction volume")} description={t("All transaction statuses combined")} /><OrdersChart data={chart} /></section><section className="surface-panel"><SectionHeading title={t("Payment status")} description={t("Distribution of transaction states")} /><DonutChart data={statuses} middle={number(current.length)} sub="transactions" /><div className="legend-grid">{statuses.map(item => <div key={item.name}><span><i style={{ background: item.color }} />{item.name}</span><strong>{number(item.value)}</strong></div>)}</div></section></div><div className="insight-grid bottom-grid"><section className="surface-panel leaderboard-panel"><SectionHeading title={t("Top customers")} description={`${t('Ranked by paid revenue for')} ${number(period)} ${t('months')}`} /><div className="leaderboard">{topCustomers.map((item, index) => <div key={item.customer.id} className="leaderboard-row"><span className="leaderboard-rank">{String(index + 1).padStart(2, '0')}</span><Avatar name={item.customer.name} /><div className="leaderboard-name"><strong>{item.customer.company}</strong><small>{item.customer.name}</small><div className="leaderboard-track"><span style={{ width: `${item.value / largest * 100}%` }} /></div></div><strong>{currency(item.value)}</strong></div>)}</div></section><section className="surface-panel source-panel"><SectionHeading title={t("Acquisition channels")} description={t("Paid revenue attributed to customer source")} /><div className="source-total"><span>{t("Revenue across channels")}</span><strong>{shortCurrency(channels.reduce((sum, item) => sum + item.value, 0))}</strong></div><div className="channel-list">{channels.map(item => <div key={item.name}><div><span><i style={{ background: item.color }} />{item.name}</span><strong>{currency(item.value)}</strong></div><div className="channel-progress"><span style={{ width: `${revenue ? item.value / revenue * 100 : 0}%`, background: item.color }} /></div></div>)}</div><div className="analytics-note">{t("Plan mix is based on subscriptions in your sample transaction records. Each payment is attributed to its customer's current source.")}</div></section></div></>;
+}
