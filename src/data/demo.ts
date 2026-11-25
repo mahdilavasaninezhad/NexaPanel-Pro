@@ -1,10 +1,10 @@
 import type { Channel, Customer, Preferences, Transaction, Workspace } from '../types';
 
 export const plans = [
-  { id: 'starter', name: 'Starter', price: 49, description: 'For individuals building their first workflow.', accent: '#7c84ff', perks: ['3 team members', 'Basic reporting', 'Email support'] },
-  { id: 'growth', name: 'Growth', price: 149, description: 'For growing teams that need better visibility.', accent: '#7466ee', perks: ['10 team members', 'Advanced analytics', 'Priority support'] },
-  { id: 'scale', name: 'Scale', price: 349, description: 'For established teams running at scale.', accent: '#2ab7ac', perks: ['Unlimited workflows', 'Team roles', 'Advanced integrations'] },
-  { id: 'enterprise', name: 'Enterprise', price: 799, description: 'For businesses with tailored requirements.', accent: '#f7ae66', perks: ['Custom onboarding', 'Dedicated support', 'Custom agreements'] }
+  { id: 'starter', name: 'Starter', price: 49, description: 'For individuals building their first workflow.', accent: '#2c80ee', perks: ['3 team members', 'Basic reporting', 'Email support'] },
+  { id: 'growth', name: 'Growth', price: 149, description: 'For growing teams that need better visibility.', accent: '#0fb19c', perks: ['10 team members', 'Advanced analytics', 'Priority support'] },
+  { id: 'scale', name: 'Scale', price: 349, description: 'For established teams running at scale.', accent: '#eeb35f', perks: ['Unlimited workflows', 'Team roles', 'Advanced integrations'] },
+  { id: 'enterprise', name: 'Enterprise', price: 799, description: 'For businesses with tailored requirements.', accent: '#7388aa', perks: ['Custom onboarding', 'Dedicated support', 'Custom agreements'] }
 ] as const;
 
 const people = [

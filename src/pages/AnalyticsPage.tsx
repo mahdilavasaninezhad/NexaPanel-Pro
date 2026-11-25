@@ -20,8 +20,8 @@ export function AnalyticsPage() {
   const previousRevenue = previous.filter(item => item.status === 'Paid').reduce((sum, item) => sum + item.amount, 0);
   const average = paid.length ? revenue / paid.length : 0;
   const totalPaid = current.length ? (paid.length / current.length) * 100 : 0;
-  const statuses = ['Paid', 'Pending', 'Refunded', 'Failed'].map((name, i) => ({ name: t(name), value: current.filter(item => item.status === name).length, color: ['#6c69ec', '#f3b657', '#f185a8', '#c7cbd6'][i] }));
-  const channels = ['Organic', 'Direct', 'Referral', 'Social'].map((name, i) => ({ name: t(name), value: paid.filter(item => data.customers.find(customer => customer.id === item.customerId)?.channel === name).reduce((sum, item) => sum + item.amount, 0), color: ['#7668ed', '#46b8ad', '#ffb568', '#f18cad'][i] }));
+  const statuses = ['Paid', 'Pending', 'Refunded', 'Failed'].map((name, i) => ({ name: t(name), value: current.filter(item => item.status === name).length, color: ['#12b597', '#ecb25f', '#e27f8a', '#778da6'][i] }));
+  const channels = ['Organic', 'Direct', 'Referral', 'Social'].map((name, i) => ({ name: t(name), value: paid.filter(item => data.customers.find(customer => customer.id === item.customerId)?.channel === name).reduce((sum, item) => sum + item.amount, 0), color: ['#2a83dc', '#16b49e', '#e5a964', '#8d9fc7'][i] }));
   const topCustomers = data.customers.map(customer => ({ customer, value: customerRevenue(customer, current) })).sort((a, b) => b.value - a.value).slice(0, 5);
   const largest = Math.max(1, ...topCustomers.map(item => item.value));
   const exportReport = () => {

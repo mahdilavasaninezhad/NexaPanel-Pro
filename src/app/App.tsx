@@ -33,8 +33,40 @@ export const useAppActions = () => useContext(AppActions);
 
 function Sidebar({ page, onNavigate, close }: { page: Page; onNavigate: (next: Page) => void; close: () => void }) {
   const t = useT();
+  const { number } = useI18n();
   const { data } = useWorkspace();
-  return <><div className="sidebar-logo"><div className="brand-mark"><span /><span /><span /><span /></div><div><strong>{t("NexaPanel")}<span className="brand-dot">.</span></strong><small>{t("PRO WORKSPACE")}</small></div></div><div className="workspace-switch"><div className="workspace-avatar">{data.preferences.workspaceName.slice(0, 1).toUpperCase()}</div><div className="workspace-name"><strong>{data.preferences.workspaceName}</strong><small>{t("Demo workspace")}</small></div></div><div className="sidebar-sections">{(['Workspace', 'Management'] as const).map(group => <div className="nav-group" key={group}><div className="nav-heading">{t(group)}</div>{items.filter(item => item.group === group).map(item => <button key={item.id} className={`nav-item ${page === item.id ? 'nav-active' : ''}`} onClick={() => { onNavigate(item.id); close(); }} aria-current={page === item.id ? 'page' : undefined}><item.icon size={18} strokeWidth={1.8} /><span>{t(item.title)}</span>{page === item.id && <span className="nav-current" />}</button>)}</div>)}</div><div className="sidebar-bottom"><div className="demo-info"><div className="demo-info-top"><span className="demo-glow" /> <strong>{t("Portfolio demo")}</strong></div><p>{t("Explore the workspace using sample data. Your changes stay in this browser.")}</p><button onClick={() => { onNavigate('settings'); close(); }}>{t("Manage demo ")}<ArrowRight size={14} /></button></div><div className="sidebar-support"><LifeBuoy size={17} /><span>{t("Sample environment")}</span></div></div></>;
+  const total = data.transactions.length;
+  const paid = data.transactions.filter(item => item.status === 'Paid').length;
+  const paidPercentage = total ? Math.round((paid / total) * 100) : 0;
+  return <>
+    <div className="sidebar-logo">
+      <div className="brand-mark"><span /><span /><span /><span /></div>
+      <div><strong>{t('NexaPanel')}<span className="brand-dot">.</span></strong><small>{t('INTELLIGENCE PLATFORM')}</small></div>
+      <span className="brand-version">02</span>
+    </div>
+    <button className="workspace-switch" onClick={() => { onNavigate('settings'); close(); }} aria-label={t('Settings')}>
+      <div className="workspace-avatar">{data.preferences.workspaceName.slice(0, 1).toUpperCase()}</div>
+      <div className="workspace-name"><strong>{data.preferences.workspaceName}</strong><small>{t('Demo workspace')}</small></div>
+      <Settings2 size={15} />
+    </button>
+    <div className="sidebar-sections">
+      {(['Workspace', 'Management'] as const).map(group => <div className="nav-group" key={group}>
+        <div className="nav-heading">{t(group)}</div>
+        {items.filter(item => item.group === group).map(item => <button key={item.id} className={`nav-item ${page === item.id ? 'nav-active' : ''}`} onClick={() => { onNavigate(item.id); close(); }} aria-current={page === item.id ? 'page' : undefined}>
+          <item.icon size={18} strokeWidth={1.75} /><span>{t(item.title)}</span>{page === item.id && <span className="nav-current" />}
+        </button>)}
+      </div>)}
+    </div>
+    <div className="sidebar-bottom">
+      <div className="sidebar-signal">
+        <div className="signal-tag"><span className="demo-glow" />{t('SAMPLE DATASET')}</div>
+        <div className="sidebar-signal-heading"><span>{t('Payment completion')}</span><strong>{number(paidPercentage)}%</strong></div>
+        <div className="sidebar-signal-track"><span style={{ width: `${paidPercentage}%` }} /></div>
+        <div className="sidebar-signal-foot"><span>{number(paid)} / {number(total)}</span><span>{t('Paid payments')}</span></div>
+      </div>
+      <div className="sidebar-support"><LifeBuoy size={16} /><span>{t('Local demo data')}</span><span className="support-version">v2.2</span></div>
+    </div>
+  </>;
 }
 
 function Notifications({ close }: { close: () => void }) {
@@ -61,7 +93,7 @@ function Header({ page, toggleSidebar, openSearch }: { page: Page; toggleSidebar
   const [open, setOpen] = useState(false);
   const unread = data.preferences.notifications ? data.transactions.filter(t => t.status === 'Pending' && new Date(t.issuedAt).getTime() > Date.now() - 90 * 86400000 && !data.readNotificationIds.includes(t.id)).slice(0, 5).length : 0;
   const title = items.find(item => item.id === page)?.title;
-  return <header className="topbar"><div className="topbar-left"><IconButton label={t("Open navigation")} onClick={toggleSidebar} className="mobile-nav-toggle"><Menu size={21} /></IconButton><span className="topbar-breadcrumb">{t("Workspace")}</span><span className="breadcrumb-separator">/</span><strong>{t(title ?? '')}</strong></div><div className="topbar-actions"><button className="top-search" onClick={openSearch}><Search size={17} /><span>{t("Search anything...")}</span><kbd>{t("⌘ K")}</kbd></button><button type="button" className="language-switch" aria-label={t('Switch language')} title={t('Switch language')} onClick={() => updatePreferences({ language: language === 'fa' ? 'en' : 'fa' })}><Languages size={17} /><span>{language === 'fa' ? 'EN' : 'فا'}</span></button><IconButton label={t("Toggle dark mode")} onClick={() => updatePreferences({ theme: data.preferences.theme === 'light' ? 'dark' : 'light' })}>{data.preferences.theme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}</IconButton><div className="notify-anchor"><IconButton label={t("Notifications")} onClick={() => setOpen(previous => !previous)}><Bell size={19} />{unread > 0 && <span className="notify-dot" />}</IconButton>{open && <Notifications close={() => setOpen(false)} />}</div><div className="header-divider" /><div className="profile"><Avatar name={data.preferences.ownerName} /><div><strong>{data.preferences.ownerName}</strong><small>{t("Workspace admin")}</small></div></div></div></header>;
+  return <header className="topbar"><div className="topbar-left"><IconButton label={t("Open navigation")} onClick={toggleSidebar} className="mobile-nav-toggle"><Menu size={21} /></IconButton><span className="topbar-breadcrumb">{t("NexaPanel")}</span><span className="breadcrumb-separator">/</span><strong>{t(title ?? '')}</strong></div><div className="topbar-actions"><span className="header-mode"><span className="header-mode-dot" />{t("Sample data")}</span><button className="top-search" onClick={openSearch}><Search size={17} /><span>{t("Search anything...")}</span><kbd>{t("⌘ K")}</kbd></button><button type="button" className="language-switch" aria-label={t('Switch language')} title={t('Switch language')} onClick={() => updatePreferences({ language: language === 'fa' ? 'en' : 'fa' })}><Languages size={17} /><span>{language === 'fa' ? 'EN' : 'فا'}</span></button><IconButton label={t("Toggle dark mode")} onClick={() => updatePreferences({ theme: data.preferences.theme === 'light' ? 'dark' : 'light' })}>{data.preferences.theme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}</IconButton><div className="notify-anchor"><IconButton label={t("Notifications")} onClick={() => setOpen(previous => !previous)}><Bell size={19} />{unread > 0 && <span className="notify-dot" />}</IconButton>{open && <Notifications close={() => setOpen(false)} />}</div><div className="header-divider" /><div className="profile"><Avatar name={data.preferences.ownerName} /><div><strong>{data.preferences.ownerName}</strong><small>{t("Workspace admin")}</small></div></div></div></header>;
 }
 
 export default function App() {
